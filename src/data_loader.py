@@ -1,23 +1,64 @@
 import pandas as pd
+import yfinance as yf
 
-def load_portfolio(file_path="data/portfolios.csv"):
+def get_portfolio(file_path="data/portfolios.csv"):
     """
     Load Portfolio
     """
-    portfolios = pd.read_csv(file_path)
+    portfolio = pd.read_csv(file_path)
 
-    portfolio_summary = portfolios.groupby(
-        ["Portfolio_ID", "Portfolio_Name"]
-    )["Shares"].sum()
+    portfolio = portfolio[portfolio["Portfolio_ID"] == "P001"]
 
-    portfolio_id = "P001"
-    
-    selected_portfolio = portfolios[
-        portfolios["Portfolio_ID"] == portfolio_id
-    ]
-
-    return portfolios
-
+    return portfolio
 
 if __name__ == "__main__":
-    portfolios = load_portfolio()
+    portfolio = get_portfolio()
+
+def get_current_prices(tickers):
+    data = yf.download(
+            tickers,
+            period="1d",
+            progress=False,
+            auto_adjust=True
+        )
+
+    if isinstance(tickers, str):
+        price = data["Close"].iloc[-1]
+        return pd.DataFrame({
+            "Ticker": [tickers],
+            "Current_Price":[price]
+        })
+    else:
+        prices = data["Close"].iloc[-1]
+        return pd.DataFrame({
+            "Ticker":prices.index,
+            "Current_Price":prices.values
+        })
+
+
+def ticker_prices():
+    tickers = get_portfolio()
+    tickers_list = tickers["Ticker"].tolist()
+
+    return get_current_prices(tickers_list)
+
+def portfolio_with_prices():
+    portfolio_prices = []
+    portfolio_prices = get_portfolio().merge(
+        ticker_prices(),
+        on="Ticker",
+        how="left"
+    )
+
+    portfolio_prices["Market_Value"] = (
+        portfolio_prices["Shares"] * portfolio_prices["Current_Price"]
+    )
+
+    total_value = portfolio_prices["Market_Value"].sum()
+
+    portfolio_prices["Allocation_Percentage"] = (
+        (portfolio_prices["Market_Value"] / total_value) * 100
+    )
+    return portfolio_prices
+
+print(portfolio_with_prices())
