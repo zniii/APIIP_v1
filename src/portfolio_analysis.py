@@ -1,5 +1,5 @@
 import pandas as pd
-from data_loader import portfolio_with_prices, load_sector_allocation
+from data_loader import load_sec_allocation, portfolio_w_prices
 
 
 def largest_and_smallest_holdings(data):
@@ -14,7 +14,7 @@ def largest_and_smallest_holdings(data):
     return pd.concat([largest, smallest], ignore_index=True)
 
 def sector_allocation(data):
-    sector_data = load_sector_allocation().merge(
+    sector_data = load_sec_allocation.merge(
         data,
         on="Ticker",
         how="inner"
@@ -44,8 +44,9 @@ def sector_diversification_score(data):
 
     return diversification_score
 
-portfolio = portfolio_with_prices()
-holdings = largest_and_smallest_holdings(portfolio)
-sector = sector_allocation(portfolio)
+holdings = largest_and_smallest_holdings(portfolio_w_prices)
+sector = sector_allocation(portfolio_w_prices)
 sector_summary = sector_allocation_summary(sector)
 sector_score = sector_diversification_score(sector_summary)
+
+print(sector_score)
