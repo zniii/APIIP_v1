@@ -61,4 +61,9 @@ def portfolio_with_prices():
     )
     return portfolio_prices
 
-print(portfolio_with_prices())
+
+def load_sector_allocation(file_path = "data/ticker_metadata.csv"):
+    sec_allocation = pd.read_csv(file_path)
+
+    return sec_allocation
+
