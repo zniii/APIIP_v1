@@ -10,9 +10,11 @@ Run everything **from the project root**. Data paths are relative to the root an
 
 ```bash
 .venv\Scripts\activate              # Windows (source .venv/bin/activate elsewhere)
-pip install pandas numpy yfinance   # no requirements.txt yet
+pip install -r requirements.txt     # pandas, numpy, yfinance, streamlit, plotly
 python src/portfolio_analysis.py P002   # full portfolio report (portfolio ID optional, default P001)
-python src/risk_analysis.py P002        # annualised volatility per ticker
+python src/risk_analysis.py P002        # risk score, factor breakdown, sector exposure
+python src/forecasting.py P002          # 1-month forecast, confidence, backtest
+streamlit run app.py                    # dashboard (opens in the browser)
 ```
 
 There is no test suite, linter or build step yet. Python 3.10+ (developed on 3.12). Prices are downloaded on each run, so network access is required.
@@ -20,7 +22,7 @@ There is no test suite, linter or build step yet. Python 3.10+ (developed on 3.1
 ## Layout
 
 ```
-app.py                     # dashboard entry point (placeholder)
+app.py                     # Streamlit dashboard (layout only; run from the project root)
 data/                      # git-ignored input CSVs
   portfolios.csv           # Portfolio_ID, Portfolio_Name, Ticker, Shares
   ticker_metadata.csv      # Ticker, Company, Sector
@@ -29,7 +31,9 @@ src/
   data_loader.py           # CSV loading, yfinance prices, market value and allocation %
   portfolio_analysis.py    # holdings, sector allocation, diversification score
   risk_analysis.py         # daily returns, volatility
-  forecasting.py           # placeholder
+  forecasting.py           # 21-day Monte Carlo forecast, confidence score, walk-forward backtest
+  insights.py              # build_insights(): plain-language findings (pure, no Streamlit)
+  charts.py                # Plotly figure builders and chart theme tokens (pure, no Streamlit)
 ```
 
 ## V1 scope
@@ -62,13 +66,23 @@ Portfolio risk score is a weighted sum of four factors:
 - **KPI cards:** portfolio value, portfolio risk score, diversification score, best performer, worst performer.
 - **Charts:** sector allocation, portfolio (holding) allocation, portfolio performance trend.
 - **Insights section:** plain-language answers to the portfolio-analysis questions above, plus risk and forecast takeaways.
-- The framework has not been chosen yet (Streamlit is the likely fit for a pandas/yfinance stack). Confirm with the user before adding a dependency.
+- Built with Streamlit and Plotly. Keep `app.py` to layout; put findings in `insights.py` and figures in `charts.py`.
+- Chart rules (from the dataviz skill): part-to-whole with more than 6 parts is ranked horizontal bars in one hue, not a donut; one axis; thin marks (bars about 22px); limits drawn as solid hairlines; values at the bar tip; every chart has a "View as table" twin; colors come from the theme tokens in `charts.py`, validated for both light and dark. Load the dataviz skill before changing charts.
+- Portfolio data is cached for 15 minutes with `st.cache_data`; the Refresh button clears it.
 
 ## Current status
 
-Implemented: total portfolio value, market value and allocation %, top holdings by allocation, best/worst performer by 1-year price change, sector allocation and summary, sector diversification score (normalised HHI over all sectors in `ticker_metadata.csv`, 0–100), concentration insights (`analyse_portfolio()` in `portfolio_analysis.py` returns everything as a dict for the dashboard), daily returns and annualised volatility (daily std × √252).
+Implemented: total portfolio value, market value and allocation %, top holdings by allocation, best/worst performer by 1-year price change, sector allocation and summary, sector diversification score (normalised HHI over all sectors in `ticker_metadata.csv`, 0–100), concentration insights (`analyse_portfolio()` in `portfolio_analysis.py` returns everything as a dict for the dashboard), daily returns and annualised volatility (daily std × √252), portfolio value history (`value_history`, for the performance trend chart), and the full risk assessment (`assess_risk()` in `risk_analysis.py`: four factors scored 0–100, weighted by `RISK_WEIGHTS`, plus risk level, portfolio volatility, max drawdown, sector exposure and diversification risk).
 
-Not yet built: asset concentration score, drawdown, composite risk score, forecasting, dashboard, performance trend. Best/worst performer uses 1-year price change because `portfolios.csv` has no purchase price.
+Risk caveats: `VOLATILITY_CAP`, `DRAWDOWN_CAP` and `RISK_LEVEL_BANDS` are tuned on five synthetic portfolios, so revisit them with real data. P001, P003, P004 and P005 match `expected_assessment.csv`; P002 scores Low (17.5) where the file says Medium, because it is the best-diversified portfolio and the file's labels rank it riskier than P003. Don't distort the weights to force a match; treat that label as the questionable one.
+
+Forecasting is implemented in `forecasting.py` (`forecast_portfolio(portfolio_id)` returns per-stock and portfolio expected price, expected return %, best/worst case, confidence score, plus backtest results). Method: 21-trading-day horizon, 10,000 correlated scenarios from an EWMA covariance (lambda 0.97), normal shocks, drift blended 25% own history / 75% CAPM (beta vs `^GSPC`), best/worst case = 95th/5th percentile. It uses 5 years of history (`get_history_with_volume`), while risk analysis still uses 1 year. Confidence is a heuristic (range tightness, history length, volume stability), not a probability.
+
+Forecast caveats: the walk-forward backtest checks how often the real price landed inside the 5-95 band (about 89% across all 14 tickers vs the 90% target; 336 forecasts, and the stocks are correlated, so differences of a couple of points are noise). Student-t shocks, bootstrap resampling and other EWMA lambdas were tried against that backtest and none was clearly better, so the plain normal-shock model stays; GARCH was not tried because the baseline gap was too small to justify a new dependency. Re-run that comparison on real portfolios or a longer history before adding model complexity. Expected return is the least reliable output.
+
+The dashboard (`app.py`) is implemented: five KPI cards, sector and holding allocation bars, performance trend line, forecast panel with a range chart, and an insights section built by `insights.py`. It passes a headless `AppTest` run for P001-P005 and the server boots, but it has not been checked visually in a browser (no browser tool was available), so open it and check layout and dark mode by eye.
+
+Follow-ups, in order (see the roadmap in the README): re-test forecasting fat-tail upgrades on 10 years of history; harden for larger real portfolios (shrinkage covariance above about 30 stocks, short-history tickers truncating everyone's data in `align_history`, re-tune risk caps and bands); the diversification score depends on how many sectors are in `ticker_metadata.csv`; confirm the P002 label. Best/worst performer uses 1-year price change because `portfolios.csv` has no purchase price.
 
 ## Conventions and gotchas
 

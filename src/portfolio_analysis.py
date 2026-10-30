@@ -41,6 +41,15 @@ def holding_returns(historical_price):
         "Return_Percentage": returns.values
     })
 
+def portfolio_value_history(historical_price, portfolio):
+    """
+    Daily portfolio value over the history window, at the current share counts
+    """
+    shares = portfolio.set_index("Ticker")["Shares"]
+    prices = historical_price.ffill().bfill()
+
+    return (prices[shares.index] * shares).sum(axis=1)
+
 def best_and_worst_performers(returns):
     best = returns.loc[[returns["Return_Percentage"].idxmax()]].assign(Performance="Best")
     worst = returns.loc[[returns["Return_Percentage"].idxmin()]].assign(Performance="Worst")
@@ -120,7 +129,8 @@ def analyse_portfolio(portfolio_id):
     tickers = ticker_prices(portfolio)
 
     portfolio_prices = portfolio_with_prices(portfolio, get_current_prices(tickers))
-    returns = holding_returns(get_historical_prices(tickers))
+    historical_prices = get_historical_prices(tickers)
+    returns = holding_returns(historical_prices)
 
     metadata = load_sector_allocation()
     sector = sector_allocation(portfolio_prices, metadata)
@@ -133,6 +143,8 @@ def analyse_portfolio(portfolio_id):
         "allocation": portfolio_prices,
         "top_holdings": top,
         "performers": best_and_worst_performers(returns),
+        "historical_prices": historical_prices,
+        "value_history": portfolio_value_history(historical_prices, portfolio),
         "sector_summary": sector_summary,
         "diversification_score": sector_diversification_score(
             sector_summary, metadata["Sector"].nunique()

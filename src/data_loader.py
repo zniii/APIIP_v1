@@ -38,13 +38,13 @@ def get_current_prices(tickers):
         "Current_Price":prices.values
     })
 
-def get_historical_prices(tickers):
+def get_historical_prices(tickers, period="1y"):
     """
-    Load 1 year data from ticker
+    Load historical closing prices from ticker (1 year by default)
     """
     hist_data = yf.download(
        tickers,
-       period="1y",
+       period=period,
        auto_adjust=True,
        progress=False
     )
@@ -52,6 +52,43 @@ def get_historical_prices(tickers):
     price_reset = hist_data["Close"]
 
     return price_reset
+
+def get_history_with_volume(tickers, period="5y"):
+    """
+    Load closing prices and trading volume from one download
+    """
+    hist_data = yf.download(
+       tickers,
+       period=period,
+       auto_adjust=True,
+       progress=False
+    )
+
+    close = hist_data["Close"]
+    volume = hist_data["Volume"]
+
+    # A single ticker can come back as a Series, depending on the yfinance version
+    if isinstance(close, pd.Series):
+        close = close.to_frame(name=tickers)
+        volume = volume.to_frame(name=tickers)
+
+    return close, volume
+
+def get_market_prices(period="5y", symbol="^GSPC"):
+    """
+    Load the closing prices of a market index (S&P 500 by default)
+    """
+    market = yf.download(
+       symbol,
+       period=period,
+       auto_adjust=True,
+       progress=False
+    )["Close"]
+
+    if isinstance(market, pd.DataFrame):
+        market = market.iloc[:, 0]
+
+    return market.rename("Market")
 
 #Ticker prices
 def ticker_prices(portfolio):

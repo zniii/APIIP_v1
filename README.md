@@ -11,7 +11,7 @@ A Python toolkit for analysing stock portfolios. It loads holdings from CSV, fet
 - **Sector allocation**: total allocation per sector, using ticker metadata
 - **Diversification score**: a 0–100 score based on a normalised Herfindahl-Hirschman Index (HHI) across sectors, measured against every sector in `ticker_metadata.csv`. 100 means allocation is spread evenly across all of them; 0 means it is all in one.
 - **Concentration check**: flags a portfolio as over-concentrated when one sector is above 40%, or one holding is above its limit. The holding limit is 25%, or twice an even split for portfolios with fewer than 8 holdings (40% for 5 holdings).
-- **Risk analysis**: daily returns and annualised volatility (daily std × √252) for each ticker, over one year of price history
+- **Risk assessment**: a 0–100 portfolio risk score and level (Low / Medium / High / Very High). It weights four factors, each scored 0–100: sector concentration (40%), portfolio volatility (25%), asset concentration (20%) and historical drawdown (15%). The report also shows portfolio volatility, max drawdown, sector exposure and diversification risk. Volatility is annualised (daily std × √252) from one year of price history.
 
 ## Project structure
 
@@ -25,7 +25,7 @@ APIIP_v1/
 └── src/
     ├── data_loader.py         # Loads CSVs and fetches prices from yfinance
     ├── portfolio_analysis.py  # Holdings, performers, sector allocation, diversification score, concentration check
-    ├── risk_analysis.py       # Daily returns and annualised volatility
+    ├── risk_analysis.py       # Volatility, drawdown, asset concentration, weighted risk score
     └── forecasting.py         # Placeholder
 ```
 
@@ -89,7 +89,7 @@ python src/portfolio_analysis.py
 # Same report for another portfolio (default is P001)
 python src/portfolio_analysis.py P002
 
-# Annualised volatility for each ticker
+# Risk report: score, level, factor breakdown, sector exposure
 python src/risk_analysis.py P002
 ```
 
@@ -98,7 +98,5 @@ Importing the modules does not load data or use the network, so the functions ca
 ## Roadmap
 
 - [ ] Price forecasting (`src/forecasting.py`)
-- [ ] App or dashboard entry point (`app.py`)
-- [ ] Asset concentration, historical drawdown and the weighted portfolio risk score
-- [ ] Portfolio-level volatility and risk-level classification, compared against `expected_assessment.csv`
+- [ ] App or dashboard entry point (`app.py`)- [ ] Re-tune the risk caps and level bands on real portfolios (currently tuned on five synthetic ones)
 - [ ] `requirements.txt`
