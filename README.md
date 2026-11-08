@@ -1,9 +1,10 @@
-<img width="1882" height="846" alt="APIIP" src="https://github.com/user-attachments/assets/807826e2-0bf4-47fc-91b7-67133d43545f" />
 # APIIP: AI-Powered Investment Intelligence Platform
 
 Know how healthy, how risky and how likely to move a stock portfolio is, in one dashboard. Enter your holdings and APIIP shows what you own, where the risk sits and what the next month might look like, in plain language.
 
 > **Not investment advice.** Forecasts are estimates from past price behaviour. The bundled sample portfolios are AI-generated placeholders, and prices come from Yahoo Finance and may be delayed.
+
+<img width="1882" height="846" alt="APIIP" src="https://github.com/user-attachments/assets/807826e2-0bf4-47fc-91b7-67133d43545f" />
 
 ## What it does
 
