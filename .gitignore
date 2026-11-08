@@ -2,3 +2,8 @@ data/*
 !data/sample/
 .venv
 __pycache__/
+
+# Private notes, kept local
+docs/ROADMAP.md
+docs/decisions.md
+CLAUDE.local.md

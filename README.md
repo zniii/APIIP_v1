@@ -1,58 +1,68 @@
-# APIIP – AI-Powered Investment Intelligence Platform
+# APIIP: AI-Powered Investment Intelligence Platform
 
-APIIP helps portfolio managers monitor investments, assess risk and forecast future performance. It loads holdings, fetches prices and sector data from Yahoo Finance, and shows the results in a Streamlit dashboard.
+Know how healthy, how risky and how likely to move a stock portfolio is, in one dashboard. Enter your holdings and APIIP shows what you own, where the risk sits and what the next month might look like, in plain language.
 
-> The sample holdings in `data/sample/` are AI-generated placeholders. Forecasts are estimates, not investment advice.
+> **Not investment advice.** Forecasts are estimates from past price behaviour. The bundled sample portfolios are AI-generated placeholders, and prices come from Yahoo Finance and may be delayed.
 
-## Features
+## What it does
 
-- **Portfolio analysis**: total value, allocation per holding and sector, best and worst performer (1-year price change), diversification score and a concentration check. The score is a 0–100 normalised Herfindahl-Hirschman Index measured against a fixed list of 11 sectors (`SECTOR_UNIVERSE`).
-- **Risk assessment**: a 0–100 risk score and level (Low / Medium / High / Very High) from four factors: sector concentration (40%), volatility (25%), asset concentration (20%) and historical drawdown (15%).
-- **Forecasting**: a 21-trading-day correlated Monte Carlo forecast with expected price and return, best and worst case, a heuristic confidence score and a walk-forward backtest.
-- **Dashboard**: KPI cards, allocation charts, performance trend, forecast panel and plain-language insights. Visitors can pick a sample portfolio or enter, upload and download their own (kept only in their browser session).
-- **Automatic ticker metadata**: company name and sector are fetched from Yahoo Finance, so no metadata file is needed.
+**Portfolio health.** Total value, allocation by holding and by sector, best and worst performer over the past year, and a 0-100 diversification score. It answers: is the portfolio balanced, which holdings and sectors dominate, is it over-concentrated?
 
-## Project structure
+**Risk assessment.** A 0-100 risk score with a level (Low, Medium, High, Very High), built from four factors:
 
-```
-APIIP_v1/
-├── app.py                     # Streamlit dashboard (layout only)
-├── data/
-│   ├── sample/portfolios.csv  # committed demo portfolios
-│   ├── portfolios.csv         # optional private portfolios for the CLI (git-ignored)
-│   ├── ticker_metadata.csv    # optional override of fetched sector data (git-ignored)
-│   └── expected_assessment.csv  # optional reference results (git-ignored)
-├── src/
-│   ├── data_loader.py         # CSV loading, yfinance prices, ticker metadata, holdings validation
-│   ├── portfolio_analysis.py  # holdings, sector allocation, diversification score
-│   ├── risk_analysis.py       # volatility, drawdown, weighted risk score
-│   ├── forecasting.py         # Monte Carlo forecast, confidence, backtest
-│   ├── insights.py            # plain-language findings
-│   └── charts.py              # Plotly figure builders
-└── docs/                      # ROADMAP.md, decisions.md
-```
+| Factor | Weight |
+|---|---|
+| Sector concentration | 40% |
+| Volatility | 25% |
+| Asset concentration | 20% |
+| Historical drawdown | 15% |
 
-## Setup
+**Forecast.** A one-month (21 trading day) outlook for each stock and the whole portfolio: expected value, best case, worst case and a confidence score. The range is shown alongside every forecast, because a range is more honest than a single number.
 
-You need Python 3.11 or newer (developed on 3.12) and an internet connection, because prices are downloaded from Yahoo Finance.
+**Insights.** Plain-language findings for all of the above, so the numbers come with an explanation.
+
+**Your own portfolio.** Switch to *My portfolio* to type in tickers and share counts, or upload a CSV, and get the same analysis. Your holdings stay in your browser session and are not stored or shared. Sector and company names are looked up automatically.
+
+## How it works
+
+- **Diversification score:** a normalised Herfindahl-Hirschman Index (HHI) across 11 sectors, so spreading money evenly across sectors scores high and putting it all in one scores zero.
+- **Risk score:** each of the four factors is scaled to 0-100 and combined with the weights above. Volatility is measured on the portfolio as a whole, from how the holdings move together, so diversification between stocks counts.
+- **Forecast:** a correlated Monte Carlo simulation. It runs 10,000 possible months using five years of price history, a covariance estimate that gives recent days more weight, and an expected return blended from each stock's own past and the market (CAPM). The best and worst cases are the 95th and 5th percentiles.
+- **Validation:** the forecast is backtested by forecasting from past dates and checking where the real price landed. In that test the real price fell inside the best-to-worst range about 89% of the time against a 90% target. Fat-tailed and bootstrap variants were tried and did not improve on the simple model, so they were not kept.
+
+The full method, formulas, worked examples and test results are in [docs/METHODOLOGY.md](docs/METHODOLOGY.md).
+
+## Try it
+
+You need Python 3.11 or newer and an internet connection (prices are downloaded from Yahoo Finance).
 
 ```bash
+git clone https://github.com/zniii/APIIP_v1.git
+cd APIIP_v1
 python -m venv .venv
-.venv\Scripts\activate          # Windows (source .venv/bin/activate elsewhere)
+.venv\Scripts\activate          # Windows (source .venv/bin/activate on macOS or Linux)
 pip install -r requirements.txt
-```
-
-## Run the dashboard
-
-```bash
 streamlit run app.py
 ```
 
-It opens on the sample portfolios. Switch to **My portfolio** to enter tickers and share counts (Yahoo Finance symbols, up to 30 holdings) or upload a CSV with `Ticker,Shares` columns.
+The dashboard opens on the sample portfolios in `data/sample/portfolios.csv`. Pick one, or choose *My portfolio* to analyse your own.
 
-## Command-line reports
+### Using your own data
 
-Run from the project root. These read `data/portfolios.csv` (same columns as the sample file: `Portfolio_ID,Portfolio_Name,Ticker,Shares`), which is git-ignored, so copy the sample file there to try them:
+Upload or type holdings with two columns:
+
+```csv
+Ticker,Shares
+AAPL,10
+JPM,5
+XOM,8
+```
+
+Use Yahoo Finance ticker symbols, with up to 30 holdings. Duplicate tickers are merged.
+
+### Command line
+
+The analysis also runs without the dashboard. Copy a portfolio file to `data/portfolios.csv` (columns `Portfolio_ID,Portfolio_Name,Ticker,Shares`, as in the sample file), then run from the project root:
 
 ```bash
 python src/portfolio_analysis.py P002   # holdings, sectors, diversification
@@ -60,18 +70,29 @@ python src/risk_analysis.py P002        # risk score and factor breakdown
 python src/forecasting.py P002          # forecast and backtest
 ```
 
-Importing the modules does not load data or use the network. `analyse_holdings(df)` and `forecast_holdings(df)` take a DataFrame with `Ticker` and `Shares` columns; `analyse_portfolio(id)` and `forecast_portfolio(id)` read a portfolio from the CSV.
+## Project structure
 
-An optional `data/ticker_metadata.csv` (`Ticker,Company,Sector`) overrides the fetched sector for the tickers it lists. Use Yahoo's sector names, otherwise they count as extra sectors in the diversification score.
+```
+app.py                     Streamlit dashboard (layout only)
+src/
+  data_loader.py           prices, ticker metadata and holdings validation (Yahoo Finance)
+  portfolio_analysis.py    allocation, sectors, diversification score
+  risk_analysis.py         volatility, drawdown, weighted risk score
+  forecasting.py           Monte Carlo forecast, confidence score, backtest
+  insights.py              plain-language findings
+  charts.py                Plotly charts
+data/sample/               demo portfolios
+docs/METHODOLOGY.md        how the models work and how they were tested
+```
 
-## Deploy on Streamlit Community Cloud
+## Limitations
 
-1. Push the repo to GitHub.
-2. At share.streamlit.io choose **Create app**: repository `zniii/APIIP_v1`, branch `main`, main file `app.py`.
-3. Under **Advanced settings** pick Python 3.12.
+- Risk thresholds were tuned on five synthetic portfolios; real portfolios may need recalibration.
+- The forecast assumes normally distributed price moves, so it can understate crash risk. Expected return is its least reliable output; trust the range more.
+- "Best" and "worst" performers are each stock's 1-year price change, not your own gain or loss, because holdings have no purchase price.
 
-Yahoo Finance may rate-limit shared cloud IPs; prices are cached for 15 minutes and sector lookups for the life of the server process.
+More detail is in the [methodology](docs/METHODOLOGY.md#7-limitations).
 
-## Roadmap
+## Built with
 
-See [docs/ROADMAP.md](docs/ROADMAP.md) for next steps and [docs/decisions.md](docs/decisions.md) for why choices were made.
+Python, pandas, NumPy, yfinance, Streamlit and Plotly.

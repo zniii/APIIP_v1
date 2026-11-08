@@ -17,7 +17,7 @@ python src/forecasting.py P002          # 1-month forecast, confidence, backtest
 streamlit run app.py                    # dashboard (opens in the browser)
 ```
 
-There is no test suite, linter or build step yet. Python 3.10+ (developed on 3.12). Prices are downloaded on each run, so network access is required.
+There is no test suite, linter or build step yet. Python 3.11+ (developed on 3.12; the pinned pandas 3 needs 3.11). Prices are downloaded on each run, so network access is required.
 
 ## Layout
 
@@ -36,8 +36,7 @@ src/
   insights.py              # build_insights(): plain-language findings (pure, no Streamlit)
   charts.py                # Plotly figure builders and chart theme tokens (pure, no Streamlit)
 docs/
-  ROADMAP.md               # progress and next steps (imported into this file)
-  decisions.md             # why choices were made, with test results
+  METHODOLOGY.md           # public: how the risk score, forecast and backtest work, with formulas and test results
 ```
 
 ## V1 scope
@@ -82,15 +81,13 @@ Risk caveats: `VOLATILITY_CAP`, `DRAWDOWN_CAP` and `RISK_LEVEL_BANDS` are tuned 
 
 Forecasting is implemented in `forecasting.py` (`forecast_holdings(holdings)` / `forecast_portfolio(portfolio_id)` return per-stock and portfolio expected price, expected return %, best/worst case, confidence score, plus backtest results). Method: 21-trading-day horizon, 10,000 correlated scenarios from an EWMA covariance (lambda 0.97), normal shocks, drift blended 25% own history / 75% CAPM (beta vs `^GSPC`), best/worst case = 95th/5th percentile. It uses 5 years of history (`get_history_with_volume`), while risk analysis still uses 1 year. Confidence is a heuristic (range tightness, history length, volume stability), not a probability.
 
-Forecast caveats: the walk-forward backtest puts the real price inside the 5-95 band about 89% of the time against a 90% target. The upgrades tried (Student-t shocks, bootstrap, other EWMA lambdas) did not clearly help, so the plain normal-shock model stays. That test may have used a calm window, so it is queued for a re-test on 10 years of history (see the roadmap); test numbers are in `docs/decisions.md`. Expected return is the least reliable output.
+Forecast caveats: the walk-forward backtest puts the real price inside the 5-95 band about 89% of the time against a 90% target. The upgrades tried (Student-t shocks, bootstrap, other EWMA lambdas) did not clearly help, so the plain normal-shock model stays. That test may have used a calm window, so a re-test on 10 years of history is still to do; test numbers are in `docs/METHODOLOGY.md`. Expected return is the least reliable output.
 
 The dashboard (`app.py`) is implemented: five KPI cards, sector and holding allocation bars, performance trend line, forecast panel with a range chart, and an insights section built by `insights.py`. It passes a headless `AppTest` run for P001-P005 and the server boots, but it has not been checked visually in a browser (no browser tool was available), so open it and check layout and dark mode by eye.
 
-## Roadmap and decisions
+## Methodology and project notes
 
-Next steps and open questions are in the roadmap below, imported so every session sees the current one. Why past choices were made, with the test numbers, is in `docs/decisions.md`: read it before changing a method, a threshold or a chart, and add an entry when you make a new choice. When a roadmap step finishes or a plan is approved, update `docs/ROADMAP.md` in the same session.
-
-@docs/ROADMAP.md
+`docs/METHODOLOGY.md` is the public description of the methods, constants and test results: keep it in step with the code, and read it before changing a method, a threshold or a chart. The maintainer may also keep private, git-ignored notes (`docs/ROADMAP.md`, `docs/decisions.md`) loaded through `CLAUDE.local.md`. If they exist, read `decisions.md` before changing a method and update both when a step finishes or a choice is made; they are not part of the repository.
 
 ## Working agreements
 
