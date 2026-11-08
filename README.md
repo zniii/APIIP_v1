@@ -4,6 +4,8 @@ Know how healthy, how risky and how likely to move a stock portfolio is, in one 
 
 > **Not investment advice.** Forecasts are estimates from past price behaviour. The bundled sample portfolios are AI-generated placeholders, and prices come from Yahoo Finance and may be delayed.
 
+<img width="1882" height="846" alt="APIIP" src="https://github.com/user-attachments/assets/807826e2-0bf4-47fc-91b7-67133d43545f" />
+
 ## What it does
 
 **Portfolio health.** Total value, allocation by holding and by sector, best and worst performer over the past year, and a 0-100 diversification score. It answers: is the portfolio balanced, which holdings and sectors dominate, is it over-concentrated?
