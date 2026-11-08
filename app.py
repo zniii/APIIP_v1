@@ -314,7 +314,8 @@ def choose_holdings():
 
 def main():
     st.set_page_config(page_title="APIIP", layout="wide")
-    st.title("APIIP: Portfolio Management")
+    st.title("APIIP: AI-Powered Investment Intelligence Platform")
+    st.subheader("Portfolio Management System for monitoring investment, assess risk and forecast future performance.")
 
     init_state()
     holdings, label = choose_holdings()
