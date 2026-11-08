@@ -280,8 +280,10 @@ def run_forecast(prices, volume, market_prices, shares, include_backtest=True):
 
     return result
 
-def forecast_portfolio(portfolio_id, include_backtest=True):
-    portfolio = get_portfolio(portfolio_id)
+def forecast_holdings(portfolio, include_backtest=True):
+    """
+    Forecast holdings given as a DataFrame with Ticker and Shares columns
+    """
     tickers = ticker_prices(portfolio)
 
     prices, volume = get_history_with_volume(tickers)
@@ -294,6 +296,9 @@ def forecast_portfolio(portfolio_id, include_backtest=True):
         portfolio.set_index("Ticker")["Shares"],
         include_backtest,
     )
+
+def forecast_portfolio(portfolio_id, include_backtest=True):
+    return forecast_holdings(get_portfolio(portfolio_id), include_backtest)
 
 
 def main():

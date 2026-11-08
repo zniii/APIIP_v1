@@ -1,7 +1,23 @@
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
 import pandas as pd
 import yfinance as yf
 
-def get_portfolio(portfolio_id, file_path="data/portfolios.csv"):
+# Resolved from the project root so the app and scripts work from any working directory
+DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+PORTFOLIOS_FILE = DATA_DIR / "portfolios.csv"
+SAMPLE_PORTFOLIOS_FILE = DATA_DIR / "sample" / "portfolios.csv"
+TICKER_METADATA_FILE = DATA_DIR / "ticker_metadata.csv"
+
+MAX_HOLDINGS = 30
+UNKNOWN_SECTOR = "Other"
+
+# Ticker -> (company, sector). Only successful lookups are kept, so a rate-limited
+# request is retried next time instead of being remembered as "Other".
+_metadata_cache = {}
+
+def get_portfolio(portfolio_id, file_path=PORTFOLIOS_FILE):
     """
     Load the holdings of one portfolio
     """
@@ -24,6 +40,10 @@ def get_current_prices(tickers):
             progress=False,
             auto_adjust=True
         )
+
+    if data.empty:
+        names = tickers if isinstance(tickers, str) else ", ".join(tickers)
+        raise ValueError(f"No price data found for: {names}")
 
     close = data["Close"]
 
@@ -125,8 +145,82 @@ def total_portfolio_value(portfolio_prices):
     return portfolio_prices["Market_Value"].sum()
 
 
-#Loading sector allocation
-def load_sector_allocation(file_path = "data/ticker_metadata.csv"):
-    sec_allocation = pd.read_csv(file_path)
+def clean_holdings(holdings):
+    """
+    Validate user-entered holdings (Ticker, Shares) and return a tidy copy.
+    Tickers are upper-cased, duplicates are merged by summing shares.
+    """
+    if not {"Ticker", "Shares"} <= set(holdings.columns):
+        raise ValueError("Holdings need the columns Ticker and Shares")
 
-    return sec_allocation
+    holdings = holdings[["Ticker", "Shares"]].copy()
+    holdings["Ticker"] = holdings["Ticker"].astype("string").str.strip().str.upper()
+    holdings["Shares"] = pd.to_numeric(holdings["Shares"], errors="coerce")
+    holdings = holdings.dropna(subset=["Ticker", "Shares"], how="all")
+    holdings = holdings[holdings["Ticker"].fillna("") != ""]
+
+    if holdings["Shares"].isna().any():
+        raise ValueError("Every ticker needs a numeric number of shares")
+    if (holdings["Shares"] <= 0).any():
+        raise ValueError("Shares must be greater than zero")
+
+    holdings = holdings.groupby("Ticker", as_index=False, sort=False)["Shares"].sum()
+
+    if holdings.empty:
+        raise ValueError("Add at least one holding")
+    if len(holdings) > MAX_HOLDINGS:
+        raise ValueError(f"At most {MAX_HOLDINGS} holdings are supported")
+
+    holdings["Ticker"] = holdings["Ticker"].astype(str)
+
+    return holdings
+
+def _fetch_ticker_metadata(ticker):
+    """
+    Company name and sector from Yahoo Finance. Returns None if the lookup fails.
+    """
+    try:
+        info = yf.Ticker(ticker).info
+    except Exception:
+        return None
+
+    company = info.get("longName") or info.get("shortName") or ticker
+    sector = info.get("sector") or UNKNOWN_SECTOR
+
+    return company, sector
+
+def get_ticker_metadata(tickers):
+    """
+    Ticker, Company and Sector for each ticker, looked up from Yahoo Finance.
+    Tickers without a sector (funds, failed lookups) are labelled "Other".
+    """
+    tickers = list(dict.fromkeys(tickers))
+    missing = [ticker for ticker in tickers if ticker not in _metadata_cache]
+
+    if missing:
+        with ThreadPoolExecutor(max_workers=8) as pool:
+            for ticker, result in zip(missing, pool.map(_fetch_ticker_metadata, missing)):
+                if result is not None:
+                    _metadata_cache[ticker] = result
+
+    rows = [
+        (ticker, *_metadata_cache.get(ticker, (ticker, UNKNOWN_SECTOR)))
+        for ticker in tickers
+    ]
+
+    return pd.DataFrame(rows, columns=["Ticker", "Company", "Sector"])
+
+def load_sector_allocation(tickers, file_path=TICKER_METADATA_FILE):
+    """
+    Ticker metadata for the given tickers. Rows in the optional local file
+    data/ticker_metadata.csv override what Yahoo Finance returns.
+    """
+    try:
+        overrides = pd.read_csv(file_path)
+    except FileNotFoundError:
+        return get_ticker_metadata(tickers)
+
+    unknown = [ticker for ticker in tickers if ticker not in set(overrides["Ticker"])]
+    fetched = get_ticker_metadata(unknown) if unknown else overrides.iloc[0:0]
+
+    return pd.concat([overrides, fetched], ignore_index=True)

@@ -1,0 +1,30 @@
+Portfolio_ID,Portfolio_Name,Ticker,Shares
+P001,Aggressive Growth,NVDA,25
+P001,Aggressive Growth,TSLA,20
+P001,Aggressive Growth,MSFT,30
+P001,Aggressive Growth,AMZN,15
+P001,Aggressive Growth,META,20
+
+P002,Balanced Investor,MSFT,20
+P002,Balanced Investor,JNJ,25
+P002,Balanced Investor,PG,30
+P002,Balanced Investor,JPM,20
+P002,Balanced Investor,XOM,15
+
+P003,Defensive Investor,JNJ,40
+P003,Defensive Investor,PG,40
+P003,Defensive Investor,KO,50
+P003,Defensive Investor,PEP,35
+P003,Defensive Investor,DUK,60
+
+P004,Technology Concentrated,AAPL,35
+P004,Technology Concentrated,MSFT,40
+P004,Technology Concentrated,NVDA,20
+P004,Technology Concentrated,META,25
+P004,Technology Concentrated,GOOGL,20
+
+P005,Dividend Income,JNJ,30
+P005,Dividend Income,PG,35
+P005,Dividend Income,KO,45
+P005,Dividend Income,XOM,25
+P005,Dividend Income,JPM,20

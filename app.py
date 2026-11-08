@@ -6,9 +6,15 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 import pandas as pd
 import streamlit as st
 
-from portfolio_analysis import analyse_portfolio, MAX_SECTOR_PERCENTAGE
+from data_loader import (
+    SAMPLE_PORTFOLIOS_FILE,
+    MAX_HOLDINGS,
+    clean_holdings,
+    get_portfolio,
+)
+from portfolio_analysis import analyse_holdings, MAX_SECTOR_PERCENTAGE
 from risk_analysis import assess_risk
-from forecasting import forecast_portfolio
+from forecasting import forecast_holdings
 from insights import build_insights
 from charts import (
     allocation_bars,
@@ -17,7 +23,9 @@ from charts import (
     group_small_holdings,
 )
 
-PORTFOLIOS_FILE = "data/portfolios.csv"
+SAMPLE_SOURCE = "Sample portfolios"
+MY_SOURCE = "My portfolio"
+EMPTY_HOLDINGS = pd.DataFrame({"Ticker": pd.Series(dtype="str"), "Shares": pd.Series(dtype="float")})
 CACHE_SECONDS = 15 * 60
 CURRENCY = "$"
 
@@ -28,21 +36,21 @@ def current_theme():
     except Exception:
         return "light"
 
-def portfolio_names(file_path=PORTFOLIOS_FILE):
+def portfolio_names(file_path=SAMPLE_PORTFOLIOS_FILE):
     portfolios = pd.read_csv(file_path)
 
     return portfolios.drop_duplicates("Portfolio_ID").set_index("Portfolio_ID")["Portfolio_Name"]
 
 # Every call downloads prices, so results are cached for a while per portfolio
 @st.cache_data(ttl=CACHE_SECONDS, show_spinner="Loading prices and analysing the portfolio...")
-def load_analysis(portfolio_id):
-    analysis = analyse_portfolio(portfolio_id)
+def load_analysis(holdings, label):
+    analysis = analyse_holdings(holdings)
 
-    return analysis, assess_risk(portfolio_id, analysis)
+    return analysis, assess_risk(label, analysis)
 
 @st.cache_data(ttl=CACHE_SECONDS, show_spinner="Running the forecast...")
-def load_forecast(portfolio_id):
-    return forecast_portfolio(portfolio_id)
+def load_forecast(holdings):
+    return forecast_holdings(holdings)
 
 def money(value):
     return f"{CURRENCY}{value:,.0f}"
@@ -196,30 +204,136 @@ def show_insights(analysis, risk, forecast):
                 st.markdown(f"- {message}")
 
 
-def main():
-    st.set_page_config(page_title="APIIP", layout="wide")
-    st.title("APIIP: Investment Intelligence")
+def init_state():
+    st.session_state.setdefault("my_table", EMPTY_HOLDINGS)
+    st.session_state.setdefault("my_holdings", None)
+    st.session_state.setdefault("editor_version", 0)
+    st.session_state.setdefault("handled_upload", None)
 
+def apply_upload(uploaded):
+    """
+    Replace the editor contents with an uploaded CSV (Ticker, Shares columns)
+    """
+    if uploaded.file_id == st.session_state.handled_upload:
+        return
+
+    st.session_state.handled_upload = uploaded.file_id
+
+    try:
+        holdings = clean_holdings(pd.read_csv(uploaded))
+    except Exception as error:
+        st.error(f"Could not read the uploaded file: {error}")
+        return
+
+    st.session_state.my_table = holdings
+    st.session_state.my_holdings = holdings
+    st.session_state.editor_version += 1
+
+def my_portfolio_holdings():
+    """
+    Editor, upload and download for a portfolio kept only in this browser session.
+    Returns the validated holdings, or None until there are some.
+    """
+    st.caption(
+        f"Enter up to {MAX_HOLDINGS} tickers (Yahoo Finance symbols) and share counts. "
+        "Your portfolio is kept only for this browser session and is not saved or shared."
+    )
+
+    uploaded = st.file_uploader("Or upload a CSV with Ticker and Shares columns", type="csv")
+    if uploaded is not None:
+        apply_upload(uploaded)
+
+    with st.form("my_portfolio"):
+        edited = st.data_editor(
+            st.session_state.my_table,
+            key=f"editor_{st.session_state.editor_version}",
+            num_rows="dynamic",
+            hide_index=True,
+            column_config={
+                "Ticker": st.column_config.TextColumn("Ticker", required=True),
+                "Shares": st.column_config.NumberColumn("Shares", min_value=0, required=True),
+            },
+            alt="Editable table of portfolio holdings: ticker and number of shares",
+        )
+        submitted = st.form_submit_button("Analyse portfolio", type="primary")
+
+    if submitted:
+        try:
+            st.session_state.my_holdings = clean_holdings(edited)
+            st.session_state.my_table = st.session_state.my_holdings
+            st.session_state.editor_version += 1
+            st.rerun()
+        except ValueError as error:
+            st.error(str(error))
+            return None
+
+    holdings = st.session_state.my_holdings
+
+    if holdings is None:
+        st.info("Add your holdings above and press Analyse portfolio.")
+        return None
+
+    st.download_button(
+        "Download as CSV",
+        holdings.to_csv(index=False),
+        file_name="my_portfolio.csv",
+        mime="text/csv",
+        icon=":material/download:",
+    )
+
+    return holdings
+
+def sample_holdings():
     names = portfolio_names()
 
-    picker, refresh, _ = st.columns([3, 1, 6], vertical_alignment="bottom")
-    portfolio_id = picker.selectbox(
+    portfolio_id = st.selectbox(
         "Portfolio",
         names.index,
         format_func=lambda portfolio: f"{portfolio}: {names[portfolio]}",
     )
-    if refresh.button("Refresh data", width="stretch"):
+    st.caption("Sample data: the holdings are AI-generated placeholders.")
+
+    return get_portfolio(portfolio_id, SAMPLE_PORTFOLIOS_FILE)[["Ticker", "Shares"]]
+
+def choose_holdings():
+    picker, refresh = st.columns([3, 1], vertical_alignment="bottom")
+    source = picker.segmented_control(
+        "Portfolio source",
+        [SAMPLE_SOURCE, MY_SOURCE],
+        default=SAMPLE_SOURCE,
+        label_visibility="collapsed",
+    ) or SAMPLE_SOURCE
+
+    if refresh.button("Refresh data", icon=":material/refresh:", width="stretch"):
         st.cache_data.clear()
 
+    if source == MY_SOURCE:
+        return my_portfolio_holdings(), MY_SOURCE
+
+    return sample_holdings(), SAMPLE_SOURCE
+
+def main():
+    st.set_page_config(page_title="APIIP", layout="wide")
+    st.title("APIIP: Investment Intelligence")
+
+    init_state()
+    holdings, label = choose_holdings()
+
+    if holdings is None:
+        st.stop()
+
     try:
-        analysis, risk = load_analysis(portfolio_id)
+        analysis, risk = load_analysis(holdings, label)
     except Exception as error:
-        st.error(f"Could not analyse portfolio {portfolio_id}: {error}")
+        st.error(
+            f"Could not analyse this portfolio: {error}. Check the ticker symbols; "
+            "if they are right, Yahoo Finance may be busy, so try again in a minute."
+        )
         st.stop()
 
     forecast = None
     try:
-        forecast = load_forecast(portfolio_id)
+        forecast = load_forecast(holdings)
     except Exception as error:
         st.warning(f"The forecast is unavailable for this portfolio: {error}")
 

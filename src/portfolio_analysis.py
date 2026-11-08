@@ -18,6 +18,22 @@ MAX_HOLDING_PERCENTAGE = 25.0
 EQUAL_WEIGHT_MULTIPLE = 2.0
 MAX_SECTOR_PERCENTAGE = 40.0
 
+# Every sector a portfolio could hold (the Yahoo Finance sector names), fixed so one
+# portfolio's score never depends on which tickers other portfolios or users have.
+SECTOR_UNIVERSE = [
+    "Technology",
+    "Healthcare",
+    "Financial Services",
+    "Consumer Cyclical",
+    "Consumer Defensive",
+    "Communication Services",
+    "Industrials",
+    "Energy",
+    "Utilities",
+    "Real Estate",
+    "Basic Materials",
+]
+
 
 def top_holdings(data, n=3):
     """
@@ -124,15 +140,25 @@ def portfolio_insights(top, sector_summary, num_holdings):
         "is_concentrated": bool(concentrated),
     }
 
-def analyse_portfolio(portfolio_id):
-    portfolio = get_portfolio(portfolio_id)
+def count_sectors(sector_summary):
+    """
+    Size of the sector universe, plus any held sector outside it (such as "Other")
+    """
+    return len(set(SECTOR_UNIVERSE) | set(sector_summary.index))
+
+def analyse_holdings(portfolio, metadata=None):
+    """
+    Analyse holdings given as a DataFrame with Ticker and Shares columns.
+    metadata (Ticker, Company, Sector) is looked up automatically when not given.
+    """
     tickers = ticker_prices(portfolio)
 
     portfolio_prices = portfolio_with_prices(portfolio, get_current_prices(tickers))
     historical_prices = get_historical_prices(tickers)
     returns = holding_returns(historical_prices)
 
-    metadata = load_sector_allocation()
+    if metadata is None:
+        metadata = load_sector_allocation(tickers)
     sector = sector_allocation(portfolio_prices, metadata)
     sector_summary = sector_allocation_summary(sector)
 
@@ -147,10 +173,13 @@ def analyse_portfolio(portfolio_id):
         "value_history": portfolio_value_history(historical_prices, portfolio),
         "sector_summary": sector_summary,
         "diversification_score": sector_diversification_score(
-            sector_summary, metadata["Sector"].nunique()
+            sector_summary, count_sectors(sector_summary)
         ),
         "insights": portfolio_insights(top, sector_summary, len(portfolio_prices)),
     }
+
+def analyse_portfolio(portfolio_id):
+    return analyse_holdings(get_portfolio(portfolio_id))
 
 
 def main():
